@@ -1,0 +1,95 @@
+\documentclass{article}
+
+% if you need to pass options to natbib, use, e.g.:
+% \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading nips_2018
+
+% ready for submission
+% \usepackage{nips_2018}
+
+% to compile a preprint version, e.g., for submission to arXiv, add
+% add the [preprint] option:
+\usepackage[preprint]{nips_2018}
+
+% to compile a camera-ready version, add the [final] option, e.g.:
+% \usepackage[final]{nips_2018}
+
+% to avoid loading the natbib package, add option nonatbib:
+% \usepackage[nonatbib]{nips_2018}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+
+\title{CS6140 Final Project Proposal}
+
+% The \author macro works with any number of authors. There are two
+% commands used to separate the names and addresses of multiple
+% authors: \And and \AND.
+%
+% Using \And between authors leaves it to LaTeX to determine where to
+% break the lines. Using \AND forces a line break at that point. So,
+% if LaTeX puts 3 of 4 authors names on the first line, and the last
+% on the second line, try using \AND instead of \And before the third
+% author name.
+
+\author{
+  Joshua Bundt \\
+  Department of Computer Science\\
+  Northeastern University\\
+  Boston, MA \\
+  \texttt{bundt.j@husky.neu.edu} \\
+  %% examples of more authors
+  \And
+  Christopher Stadler \\
+  Department of Computer Science \\
+  Northeastern University \\
+  Boston, MA \\
+  \texttt{stadler.c@husky.nedu.edu} \\
+}
+
+\begin{document}
+% \nipsfinalcopy is no longer used
+
+\maketitle
+
+
+\section{Problem Statement}
+\label{what}
+
+Given a model trained on a dataset, we would like to use the model to create adversarial examples through an optimization problem that categorizes a new sample to our advantage. Our target will be "fake news" classifiers from the \textbf{Fake News Challenge}  (\href{http://fakenewschallenge.org}{fakenewschallenge.org}) which was a public machine learning competition to identify fake news articles based on their title and content. The labeled dataset and the most accurate models are publicly available.  The goal is to minimally transform "fake news" articles in such a way that they are misclassified as legitimate by the original models.
+
+\section{Background and Related Work}
+\label{why}
+The accuracy of a machine learning model depends on the assumption that its training data is drawn identically and independently from the same distribution as the examples it will be applied to. However, if the model is used for real world applications then the distribution of data it will be confronted with is not fix and may even be manipulated by an adversary to purposefully produce errors. Such examples are known as "adversarial examples" [1]. Most work on adversarial examples has focused on computer vision [2] and speech recognition [3], so we hope to extend this work to the domain of text classification.
+
+Fake news adversarial examples have real world consequences: creators of fake news have incentives to evade detection, and so are likely to use adversarial strategies to do so as detection becomes increasingly automated through machine learning. It is therefore important to investigate the susceptibility of fake-news classifiers to such adversarial attacks.
+
+To do this we will target models built for the Fake News Challenge [4]. These models are not full fake news classifiers, but instead address the sub-problem of stance detection: whether two pieces of text agree or disagree. For example, this would be useful for classifying articles based on whether or not they are consistent with a known true statement.
+
+\section{Proposed Solution}
+\label{how}
+Generating adversarial examples is similar to building a machine learning model, but instead of changing the weights we change the input. We begin with a correctly classified example and make small changes to it. We use gradient descent to minimize a loss function which represents the distance between the desired and actual classification. We will pick one model from the Fake News Challenge with which to generate adversarial examples, and also measure the accuracy of a second model from the challenge on the same examples. Although this is not a true "black-box" attack because both models have been trained on the same data (see [2]), it will still demonstrate whether the attack is generalizable at all, or based purely on the quirks of the first model.
+
+\section{Project Timeline and Milestones}
+\label{when}
+
+\section*{References}
+\medskip
+
+\small
+
+[1] Szegedy, Christian, Wojciech Zaremba, Ilya Sutskever, Joan Bruna, Dumitru Erhan, Ian Goodfellow, and Rob Fergus. "Intriguing properties of neural networks." arXiv preprint arXiv:1312.6199 (2013).
+
+[2] Papernot, Nicolas, Patrick McDaniel, Ian Goodfellow, Somesh Jha, Z. Berkay Celik, and Ananthram Swami. "Practical black-box attacks against machine learning." In Proceedings of the 2017 ACM on Asia Conference on Computer and Communications Security, pp. 506-519. ACM, 2017.
+
+[3] Carlini, Nicholas, and David Wagner. "Audio adversarial examples: Targeted attacks on speech-to-text." arXiv preprint arXiv:1801.01944 (2018).
+
+[4] http://www.fakenewschallenge.org/
+
+\end{document}
