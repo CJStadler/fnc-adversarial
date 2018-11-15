@@ -1,0 +1,3 @@
+[submodule "fnc-1-baseline"]
+	path = fnc-1-baseline
+	url = https://github.com/FakeNewsChallenge/fnc-1-baseline.git
