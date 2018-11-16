@@ -88,7 +88,7 @@ def construct_example(model, original_x, body, headline, true_label_id):
     return (new_body, changes)
 
 def write_csv(transformed_examples):
-    with open('transformed_examples.csv', 'w') as csvfile:
+    with open('data/transformed_examples.csv', 'w') as csvfile:
         fieldnames = ['Body ID', 'articleBody', 'deletions']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
