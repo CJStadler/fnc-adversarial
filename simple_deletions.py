@@ -1,8 +1,11 @@
 import heapq
+import csv
 
 import numpy as np
 import sklearn as sk
+
 from sklearn.externals import joblib
+from tqdm import tqdm
 
 from fnc_1_baseline.utils.dataset import DataSet
 from fnc_1_baseline.feature_engineering import refuting_features, polarity_features, hand_features, gen_or_load_feats
@@ -31,7 +34,7 @@ def feature_vec(headline, body):
 
     return np.c_[hand, polarity, refuting, overlap]
 
-def calculate_reductions(model, original_probabilities, body_tokens, headline):
+def calculate_reductions(model, original_probabilities, body_tokens, headline, true_label_id):
     reductions = []
 
     for i, token in enumerate(body_tokens):
@@ -51,7 +54,7 @@ def construct_example(model, original_x, body, headline, true_label_id):
     body_tokens = body.split(" ")
 
     # For each word calculate the class probability reduction if it is removed
-    reductions = calculate_reductions(model, original_probabilities, body_tokens, headline)
+    reductions = calculate_reductions(model, original_probabilities, body_tokens, headline, true_label_id)
     reductions.sort(key=lambda x: -x[1]) # Lowest first
 
     # Remove words until the prediction changes (with a cap on the number of changes)
@@ -71,10 +74,21 @@ def construct_example(model, original_x, body, headline, true_label_id):
     # If the loop terminated then we were able to change the label
     return (new_body, changes)
 
+def write_csv(transformed_examples):
+    with open('transformed_examples.csv', 'w') as csvfile:
+        fieldnames = ['Body ID', 'articleBody', 'deletions']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+        writer.writeheader()
+
+        for example in transformed_examples:
+            writer.writerow(example)
+
 def main():
     # Load test data
     test_dataset = DataSet(name="competition_test", path="fnc_1_baseline/fnc-1")
     headlines, bodies, body_ids, y = [],[],[],[]
+    transformed_examples = []
 
     for stance in test_dataset.stances:
         y.append(LABELS.index(stance['Stance']))
@@ -98,16 +112,27 @@ def main():
         if ((prediction == "disagree" or prediction == "agree") and prediction == truth):
             correct_agree_disagree.append(i)
 
+    change_counts = []
+
     # Transform each example
-    for index in correct_agree_disagree[:2]:
+    for index in tqdm(correct_agree_disagree):
         headline = headlines[index]
         body = bodies[index]
         body_id = body_ids[index]
         true_label_id = y[index]
         original_x = X_test[index]
 
-        new_body, changes = construct_example(model, original_x, body, headline, true_label_id)
-        # TODO: save
+        new_body, deletions = construct_example(model, original_x, body, headline, true_label_id)
+        transformed_examples.append({ "Body ID": body_id, "articleBody": new_body, "deletions": deletions})
+        change_counts.append(deletions)
+
+    with_changes = [c for c in change_counts if c > 0]
+    print("Original correct agree/disagree: {}".format(len(correct_agree_disagree)))
+    print("Prediction changed count: {}".format(len(with_changes)))
+    print("Median deletions: {}".format(np.median(with_changes)))
+
+    write_csv(transformed_examples)
+
 
 if __name__ == "__main__":
     main()
