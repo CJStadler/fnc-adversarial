@@ -31,44 +31,7 @@ def feature_vec(headline, body):
 
     return np.c_[hand, polarity, refuting, overlap]
 
-# Load test data
-test_dataset = DataSet(name="competition_test", path="fnc_1_baseline/fnc-1")
-headlines, bodies, body_ids, y = [],[],[],[]
-
-for stance in test_dataset.stances:
-    y.append(LABELS.index(stance['Stance']))
-    headlines.append(stance['Headline'])
-    body_ids.append(stance['Body ID'])
-    bodies.append(test_dataset.articles[stance['Body ID']])
-
-X_test = generate_test_features(headlines, bodies)
-
-# Load model
-model = joblib.load('kfold_trained.joblib')
-
-# Make predictions
-predicted = [LABELS[int(a)] for a in model.predict(X_test)]
-actual = [LABELS[int(a)] for a in y]
-
-# Select correct predictions of agree or disagree
-correct_agree_disagree = []
-
-for i, (prediction, truth) in enumerate(zip(predicted, actual)):
-    if ((prediction == "disagree" or prediction == "agree") and prediction == truth):
-        correct_agree_disagree.append(i)
-
-# Transform each example
-for index in correct_agree_disagree[:2]:
-    headline = headlines[index]
-    body = bodies[index]
-    body_id = body_ids[index]
-    true_label_id = y[index]
-
-    original_x = X_test[index]
-    original_probabilities = model.predict_proba(original_x.reshape(1, -1))
-
-    # For each word calculate the class probability reduction if it is removed
-    body_tokens = body.split(" ")
+def calculate_reductions(model, original_probabilities, body_tokens, headline):
     reductions = []
 
     for i, token in enumerate(body_tokens):
@@ -81,16 +44,70 @@ for index in correct_agree_disagree[:2]:
 
         reductions.append((i, reduction))
 
+    return reductions
 
-    greatest_reductions = heapq.nlargest(10, reductions, key=lambda x: x[1])
-    reduction_ids = [i for i, r in greatest_reductions]
+def construct_example(model, original_x, body, headline, true_label_id):
+    original_probabilities = model.predict_proba(original_x.reshape(1, -1))
+    body_tokens = body.split(" ")
 
-    # Build a new body without the tokens that produced the greatest reductions.
-    removed_tokens = [t for i, t in enumerate(body_tokens) if i in reduction_ids]
-    new_tokens = [t for i, t in enumerate(body_tokens) if i not in reduction_ids]
-    new_body = " ".join(new_tokens)
+    # For each word calculate the class probability reduction if it is removed
+    reductions = calculate_reductions(model, original_probabilities, body_tokens, headline)
+    reductions.sort(key=lambda x: -x[1]) # Lowest first
 
-    new_x = feature_vec(headline, new_body)
-    probabilities = model.predict_proba(new_x)
-    import pdb; pdb.set_trace()
-    print(new_body)
+    # Remove words until the prediction changes (with a cap on the number of changes)
+    changes = 0
+    new_body = body
+    removed_so_far = [] # indices
+    while model.predict(feature_vec(headline, new_body)) == true_label_id:
+        if (changes >= 10):
+            return (body, 0) # Could not change the label
+
+        index, _reduction = reductions.pop() # Largest reduction
+        removed_so_far.append(index)
+        new_tokens = [t for i, t in enumerate(body_tokens) if i not in removed_so_far]
+        new_body = " ".join(new_tokens)
+        changes += 1
+
+    # If the loop terminated then we were able to change the label
+    return (new_body, changes)
+
+def main():
+    # Load test data
+    test_dataset = DataSet(name="competition_test", path="fnc_1_baseline/fnc-1")
+    headlines, bodies, body_ids, y = [],[],[],[]
+
+    for stance in test_dataset.stances:
+        y.append(LABELS.index(stance['Stance']))
+        headlines.append(stance['Headline'])
+        body_ids.append(stance['Body ID'])
+        bodies.append(test_dataset.articles[stance['Body ID']])
+
+    X_test = generate_test_features(headlines, bodies)
+
+    # Load model
+    model = joblib.load('kfold_trained.joblib')
+
+    # Make predictions
+    predicted = [LABELS[int(a)] for a in model.predict(X_test)]
+    actual = [LABELS[int(a)] for a in y]
+
+    # Select correct predictions of agree or disagree
+    correct_agree_disagree = []
+
+    for i, (prediction, truth) in enumerate(zip(predicted, actual)):
+        if ((prediction == "disagree" or prediction == "agree") and prediction == truth):
+            correct_agree_disagree.append(i)
+
+    # Transform each example
+    for index in correct_agree_disagree[:2]:
+        headline = headlines[index]
+        body = bodies[index]
+        body_id = body_ids[index]
+        true_label_id = y[index]
+        original_x = X_test[index]
+
+        new_body, changes = construct_example(model, original_x, body, headline, true_label_id)
+        # TODO: save
+
+if __name__ == "__main__":
+    main()
