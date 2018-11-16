@@ -1,3 +1,16 @@
+"""
+This script generates misclassified examples by deleting words from examples
+that were correctly classified by the baseline model.
+
+This is the basic algorithm:
+Get test examples where model correctly predicts agree or disagree.
+For each example:
+  For each word in body:
+    Get class probabilities of example with and without word.
+    Save reduction in probability of correct class.
+  Until the predicted label changes or we hit the max number of deletions:
+    Delete the word which causes the highest reduction in probability.
+"""
 import heapq
 import csv
 
