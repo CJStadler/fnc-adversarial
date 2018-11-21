@@ -80,7 +80,63 @@ This technique does not rely on any knowledge of the structure of the classifier
 \section{Experimental Results}
 To test our prototype we generated adversarial examples using the FNC-1 baseline model \cite{noauthor_baseline_2018} and the FNC test dataset. We only attempted to transform examples which were correctly classified as \texttt{agree} \texttt{disagree} or \texttt{discuss}. Examples classified as \texttt{unrelated} would be difficult to generate adversarial examples for without adding information to them.
 
-\section{Remaining Work}
+Of the 3736 examples correctly classified by the source model (table \ref{table:original}) 906 were transformed, resulting in mis-classification (table \ref{table:transformed}). Of these the median number of words deleted was 2.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{|l|l|l|l|l|}
+\hline
+truth \textbackslash prediction & agree & disagree & discuss & unrelated \\ \hline
+agree                           & 173   & 0        & 0       & 0         \\ \hline
+disagree                        & 0     & 7        & 0       & 0         \\ \hline
+discuss                         & 0     & 0        & 3556    & 0         \\ \hline
+\end{tabular}
+\caption{Classification of original examples by source model.}
+\label{table:original}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{|l|l|l|l|l|}
+\hline
+truth \textbackslash prediction & agree & disagree & discuss & unrelated \\ \hline
+agree                           & 56    & 4        & 67      & 46        \\ \hline
+disagree                        & 3     & 2        & 1       & 1         \\ \hline
+discuss                         & 205   & 10       & 2772    & 569       \\ \hline
+\end{tabular}
+\caption{Classification of transformed test examples by source model.}
+\label{table:transformed}
+\end{table}
+
+We then tested the same examples using a second FNC-1 baseline model as the target, trained on a different random sample of the training data set. Table \ref{table:original_target} shows that the target model had similar accuracy on the original test data, and table \ref{table:transformed_target} shows that it also performed similarly against the transformed data set.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{|l|l|l|l|l|}
+\hline
+truth \textbackslash prediction & agree & disagree & discuss & unrelated \\ \hline
+agree                           & 172   & 0        & 1       & 0         \\ \hline
+disagree                        & 0     & 7        & 0       & 0         \\ \hline
+discuss                         & 0     & 0        & 3556    & 0         \\ \hline
+\end{tabular}
+\caption{Classification of original examples by target model.}
+\label{table:original_target}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{|l|l|l|l|l|}
+\hline
+truth \textbackslash prediction & agree & disagree & discuss & unrelated \\ \hline
+agree                           & 56    & 4        & 69      & 44        \\ \hline
+disagree                        & 3     & 2        & 1       & 1         \\ \hline
+discuss                         & 204   & 6        & 2777    & 569       \\ \hline
+\end{tabular}
+\caption{Classification of transformed test examples by target model.}
+\label{table:transformed_target}
+\end{table}
+
+While this should not be surprising as the source and target models had the same structure, it demonstrates that the adversarial examples are not only effective against the specific model used to generate them. The next step is to test models with different structures against our generated examples.
 
 \medskip
 

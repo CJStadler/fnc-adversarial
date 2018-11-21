@@ -11,7 +11,6 @@ For each example:
   Until the predicted label changes or we hit the max number of deletions:
     Delete the word which causes the highest reduction in probability.
 """
-import heapq
 import csv
 
 import numpy as np
