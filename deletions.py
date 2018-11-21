@@ -26,6 +26,9 @@ from fnc_1_baseline.feature_engineering import word_overlap_features
 from fnc_1_baseline.feature_engineering import clean
 from fnc_1_baseline.utils.score import report_score, LABELS, score_submission
 
+def load_trained_model():
+    return joblib.load('kfold_trained.joblib')
+
 def generate_test_features(headlines, bodies):
     overlap = gen_or_load_feats(word_overlap_features, headlines, bodies, "fnc_1_baseline/features/overlap.competition.npy")
     refuting = gen_or_load_feats(refuting_features, headlines, bodies, "fnc_1_baseline/features/refuting.competition.npy")
@@ -47,35 +50,52 @@ def feature_vec(headline, body):
 
     return np.c_[hand, polarity, refuting, overlap]
 
-def calculate_reductions(model, original_probabilities, body_tokens, headline, true_label_id):
-    reductions = []
 
-    for i, token in enumerate(body_tokens):
-        tokens_without = body_tokens.copy()
-        del tokens_without[i]
-        body_without = " ".join(tokens_without)
-        x_without = feature_vec(headline, body_without)
-        probabilities = model.predict_proba(x_without)
-        reduction = original_probabilities[0][true_label_id] - probabilities[0][true_label_id]
+def probabilities_without_token(model, headline, body_tokens, token_id):
+    tokens_without = body_tokens.copy()
+    del tokens_without[token_id]
+    body_without = " ".join(tokens_without)
+    x_without = feature_vec(headline, body_without)
+    return model.predict_proba(x_without)[0]
 
-        reductions.append((i, reduction))
+PROBABILITIES_CACHE = {} # body_id -> list of probabilities after deleting each token
+def probabilities_without_tokens(model, body_tokens, headline, body_id):
+    probabilities = PROBABILITIES_CACHE.get(body_id)
 
-    return reductions
+    if not probabilities:
+        probabilities = []
+        for i, token in enumerate(body_tokens):
+            if len(token) > 3:
+                prob = probabilities_without_token(model, headline, body_tokens, i)
+                probabilities.append((i, prob))
 
-def construct_example(model, original_x, body, headline, true_label_id):
+        PROBABILITIES_CACHE[body_id] = probabilities
+
+    return probabilities
+
+def calculate_reductions(model, original_probabilities, body_tokens, headline, body_id, true_label_id):
+    original_probability = original_probabilities[0][true_label_id]
+    probabilities = probabilities_without_tokens(model, body_tokens, headline, body_id)
+
+    return [
+        (i, original_probability - p[true_label_id])
+        for i, p in probabilities
+    ]
+
+def construct_example(model, original_x, body, body_id, headline, true_label_id):
     original_probabilities = model.predict_proba(original_x.reshape(1, -1))
     body_tokens = body.split(" ")
 
     # For each word calculate the class probability reduction if it is removed
-    reductions = calculate_reductions(model, original_probabilities, body_tokens, headline, true_label_id)
-    reductions.sort(key=lambda x: -x[1]) # Lowest first
+    reductions = calculate_reductions(model, original_probabilities, body_tokens, headline, body_id, true_label_id)
+    reductions.sort(key=lambda x: x[1]) # Lowest first
 
     # Remove words until the prediction changes (with a cap on the number of changes)
     changes = 0
     new_body = body
     removed_so_far = [] # indices
     while model.predict(feature_vec(headline, new_body)) == true_label_id:
-        if (changes >= 10):
+        if (changes >= 10 or (not reductions)):
             return (body, 0) # Could not change the label
 
         index, _reduction = reductions.pop() # Largest reduction
@@ -87,11 +107,18 @@ def construct_example(model, original_x, body, headline, true_label_id):
     # If the loop terminated then we were able to change the label
     return (new_body, changes)
 
-def write_csv(transformed_examples):
-    with open('data/transformed_examples.csv', 'w') as csvfile:
-        fieldnames = ['Body ID', 'articleBody', 'deletions']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+def write_csvs(transformed_examples):
+    with open('data/transformed_test_all.csv', 'w') as csvfile:
+        fieldnames = ['Body ID', 'articleBody', 'deletions', 'Original body ID']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
+        writer.writeheader()
 
+        for example in transformed_examples:
+            writer.writerow(example)
+
+    with open('data/transformed_test_stances.csv', 'w') as csvfile:
+        fieldnames = ['Body ID', 'Headline', 'Stance']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
 
         for example in transformed_examples:
@@ -112,40 +139,50 @@ def main():
     X_test = generate_test_features(headlines, bodies)
 
     # Load model
-    model = joblib.load('kfold_trained.joblib')
+    model = load_trained_model()
 
     # Make predictions
-    predicted = [LABELS[int(a)] for a in model.predict(X_test)]
-    actual = [LABELS[int(a)] for a in y]
+    predictions =  model.predict(X_test)
 
     # Select correct predictions of agree or disagree
-    correct_agree_disagree = []
+    correctly_predicted = []
 
-    for i, (prediction, truth) in enumerate(zip(predicted, actual)):
-        if ((prediction == "disagree" or prediction == "agree") and prediction == truth):
-            correct_agree_disagree.append(i)
+    for i, (prediction, truth) in enumerate(zip(predictions, y)):
+        if (prediction == truth and (prediction in [0, 1, 2])): # agree, disagree, or discuss
+            correctly_predicted.append(i)
 
     change_counts = []
 
-    # Transform each example
-    for index in tqdm(correct_agree_disagree):
-        headline = headlines[index]
-        body = bodies[index]
-        body_id = body_ids[index]
-        true_label_id = y[index]
-        original_x = X_test[index]
+    # correctly_predicted = correctly_predicted[:50]
+    print("Original correct: {}".format(len(correctly_predicted)))
 
-        new_body, deletions = construct_example(model, original_x, body, headline, true_label_id)
-        transformed_examples.append({ "Body ID": body_id, "articleBody": new_body, "deletions": deletions})
-        change_counts.append(deletions)
+    # Transform each example
+    for index in tqdm(correctly_predicted):
+        try:
+            headline = headlines[index]
+            original_body = bodies[index]
+            body_id = body_ids[index]
+            true_label_id = y[index]
+            original_x = X_test[index]
+
+            new_body, deletions = construct_example(model, original_x, original_body, body_id, headline, true_label_id)
+            transformed_examples.append({
+                "Body ID": index,
+                "articleBody": new_body,
+                "Stance": LABELS[true_label_id],
+                "Headline": headline,
+                "Original body ID": body_id,
+                "deletions": deletions,
+            })
+            change_counts.append(deletions)
+        except Exception as e:
+            print("Error for {}: {}".format(index, e))
 
     with_changes = [c for c in change_counts if c > 0]
-    print("Original correct agree/disagree: {}".format(len(correct_agree_disagree)))
     print("Prediction changed count: {}".format(len(with_changes)))
     print("Median deletions: {}".format(np.median(with_changes)))
 
-    write_csv(transformed_examples)
-
+    write_csvs(transformed_examples)
 
 if __name__ == "__main__":
     main()
