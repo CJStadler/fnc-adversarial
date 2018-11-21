@@ -1,0 +1,146 @@
+\documentclass{article}
+
+% if you need to pass options to natbib, use, e.g.:
+% \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading nips_2018
+
+% ready for submission
+% \usepackage{nips_2018}
+
+% to compile a preprint version, e.g., for submission to arXiv, add
+% add the [preprint] option:
+\usepackage[preprint]{nips_2018}
+
+% to compile a camera-ready version, add the [final] option, e.g.:
+% \usepackage[final]{nips_2018}
+
+% to avoid loading the natbib package, add option nonatbib:
+% \usepackage[nonatbib]{nips_2018}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+
+\title{CS6140 Final Project Milestone Report}
+
+% The \author macro works with any number of authors. There are two
+% commands used to separate the names and addresses of multiple
+% authors: \And and \AND.
+%
+% Using \And between authors leaves it to LaTeX to determine where to
+% break the lines. Using \AND forces a line break at that point. So,
+% if LaTeX puts 3 of 4 authors names on the first line, and the last
+% on the second line, try using \AND instead of \And before the third
+% author name.
+
+\author{
+  Joshua Bundt \\
+  Department of Computer Science\\
+  Northeastern University\\
+  Boston, MA \\
+  \texttt{bundt.j@husky.neu.edu} \\
+  %% examples of more authors
+  \And
+  Christopher Stadler \\
+  Department of Computer Science \\
+  Northeastern University \\
+  Boston, MA \\
+  \texttt{stadler.c@husky.nedu.edu} \\
+}
+
+\begin{document}
+% \nipsfinalcopy is no longer used
+
+\maketitle
+
+\section{Introduction}
+
+\section{Related Work}
+
+\section{Methodology}
+For our prototype adversarial example generator we implemented a simplified version of the algorithm proposed by Samanta and Mehta \cite{samanta_towards_2017}. The inputs are a trained model, and a set of examples which are correctly classified by the model. For each example we apply transformations to the text until it is misclassified by the model, or the maximum number of transformations is reached.
+
+Currently the only type of transformation we have implemented is the deletion of single words. For each word $w_k$ in the text we calculate it's contribution to the predicted probability of the true class ($y_i$):
+
+\begin{equation}
+    C(w_k, y_i) = p(y_i | s) - p(y_i | s^{w_k})
+\end{equation}
+
+Where $s$ is the original text and $s^{w_k}$ is the text with $w_k$ deleted.
+
+We then remove words from the text in decreasing order of contribution until the model's prediction changes. To limit the distortion of the text we cap the number of allowed deletions. If the prediction does not change before this limit is reached we restore the text to its original state.
+
+This technique does not rely on any knowledge of the structure of the classifier. It must only provide methods for generating feature vectors from the raw data, predicting class probabilities, and there cannot be a limit on the number of predictions.
+
+\section{Experimental Results}
+To test our prototype we generated adversarial examples using the FNC-1 baseline model \cite{noauthor_baseline_2018} and the FNC test dataset. We only attempted to transform examples which were correctly classified as \texttt{agree} \texttt{disagree} or \texttt{discuss}. Examples classified as \texttt{unrelated} would be difficult to generate adversarial examples for without adding information to them.
+
+Of the 3736 examples correctly classified by the source model (table \ref{table:original}) 906 were transformed, resulting in mis-classification (table \ref{table:transformed}). Of these the median number of words deleted was 2.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{|l|l|l|l|l|}
+\hline
+truth \textbackslash prediction & agree & disagree & discuss & unrelated \\ \hline
+agree                           & 173   & 0        & 0       & 0         \\ \hline
+disagree                        & 0     & 7        & 0       & 0         \\ \hline
+discuss                         & 0     & 0        & 3556    & 0         \\ \hline
+\end{tabular}
+\caption{Classification of original examples by source model.}
+\label{table:original}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{|l|l|l|l|l|}
+\hline
+truth \textbackslash prediction & agree & disagree & discuss & unrelated \\ \hline
+agree                           & 56    & 4        & 67      & 46        \\ \hline
+disagree                        & 3     & 2        & 1       & 1         \\ \hline
+discuss                         & 205   & 10       & 2772    & 569       \\ \hline
+\end{tabular}
+\caption{Classification of transformed test examples by source model.}
+\label{table:transformed}
+\end{table}
+
+We then tested the same examples using a second FNC-1 baseline model as the target, trained on a different random sample of the training data set. Table \ref{table:original_target} shows that the target model had similar accuracy on the original test data, and table \ref{table:transformed_target} shows that it also performed similarly against the transformed data set.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{|l|l|l|l|l|}
+\hline
+truth \textbackslash prediction & agree & disagree & discuss & unrelated \\ \hline
+agree                           & 172   & 0        & 1       & 0         \\ \hline
+disagree                        & 0     & 7        & 0       & 0         \\ \hline
+discuss                         & 0     & 0        & 3556    & 0         \\ \hline
+\end{tabular}
+\caption{Classification of original examples by target model.}
+\label{table:original_target}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{|l|l|l|l|l|}
+\hline
+truth \textbackslash prediction & agree & disagree & discuss & unrelated \\ \hline
+agree                           & 56    & 4        & 69      & 44        \\ \hline
+disagree                        & 3     & 2        & 1       & 1         \\ \hline
+discuss                         & 204   & 6        & 2777    & 569       \\ \hline
+\end{tabular}
+\caption{Classification of transformed test examples by target model.}
+\label{table:transformed_target}
+\end{table}
+
+While this should not be surprising as the source and target models had the same structure, it demonstrates that the adversarial examples are not only effective against the specific model used to generate them. The next step is to test models with different structures against our generated examples.
+
+\medskip
+
+\bibliographystyle{unsrt}
+\bibliography{references}
+
+\end{document}

@@ -11,7 +11,6 @@ For each example:
   Until the predicted label changes or we hit the max number of deletions:
     Delete the word which causes the highest reduction in probability.
 """
-import heapq
 import csv
 
 import numpy as np
@@ -108,7 +107,7 @@ def construct_example(model, original_x, body, body_id, headline, true_label_id)
     return (new_body, changes)
 
 def write_csvs(transformed_examples):
-    with open('data/transformed_test_all.csv', 'w') as csvfile:
+    with open('data/transformed_test_bodies.csv', 'w') as csvfile:
         fieldnames = ['Body ID', 'articleBody', 'deletions', 'Original body ID']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
