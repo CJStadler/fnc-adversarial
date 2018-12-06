@@ -17,8 +17,11 @@ import csv
 import numpy as np
 import sklearn as sk
 
+from nltk import pos_tag, pos_tag_sents, word_tokenize, sent_tokenize
+from nltk.corpus import wordnet as wn
 from sklearn.externals import joblib
 from tqdm import tqdm
+from sacremoses import MosesTokenizer, MosesDetokenizer
 
 from fnc_1_baseline.utils.dataset import DataSet
 from fnc_1_baseline.feature_engineering import refuting_features, polarity_features, hand_features, gen_or_load_feats
@@ -51,7 +54,16 @@ def feature_vec(headline, body):
     return np.c_[hand, polarity, refuting, overlap]
 
 def find_synonym(token, pos):
-    return token # TODO
+    synsets = wn.synsets(token, pos=pos)
+
+    if synsets:
+        # Use the first synset.
+        words = synsets[0].lemma_names()
+
+        # Find the first word that is not our token.
+        for word in words:
+            if word != token:
+                return word
 
 detokenizer = MosesDetokenizer()
 def probabilities_with_synonym(model, headline, tagged_tokens, token_id, synonym):
@@ -68,11 +80,12 @@ def probabilities_with_synonyms(model, tagged_tokens, headline, body_id):
     if not probabilities:
         probabilities = []
         for i, (token, pos) in enumerate(tagged_tokens):
-            synonym = find_synonym(token, pos)
+            if len(token) > 3: # || and pos == wn.ADV:
+                synonym = find_synonym(token.lower(), pos)
 
-            if synonym:
-                prob = probabilities_with_synonym(model, headline, tagged_tokens, i, synonym)
-                probabilities.append((i, synonym, prob))
+                if synonym:
+                    prob = probabilities_with_synonym(model, headline, tagged_tokens, i, synonym)
+                    probabilities.append((i, synonym, prob))
 
         PROBABILITIES_CACHE[body_id] = probabilities
 
@@ -87,28 +100,48 @@ def calculate_reductions(model, original_probabilities, tagged_tokens, headline,
         for i, synonym, p in probabilities
     ]
 
+def translate_tag(penntag):
+    """ The tagger uses different tags than wordnet. """
+    map = {
+        'NN':wn.NOUN,
+        'JJ':wn.ADJ,
+        'VB':wn.VERB,
+        'RB':wn.ADV
+    }
+
+    return map.get(penntag[:2], wn.NOUN) # Use first 2 chars, and fall back to noun.
+
+def tokenize_and_tag(body):
+    sentence_tokens = [word_tokenize(sentence) for sentence in sent_tokenize(body)]
+    tagged_sentences = pos_tag_sents(sentence_tokens)
+    flattened = [tagged for sentence in tagged_sentences for tagged in sentence]
+    return [(token, translate_tag(tag)) for token, tag in flattened]
+
 def construct_example(model, original_x, body, body_id, headline, true_label_id):
     original_probabilities = model.predict_proba(original_x.reshape(1, -1))
-    tagged_tokens = # TODO
+    tagged_tokens = tokenize_and_tag(body)
 
     # For each word calculate the class probability reduction if it is removed
     reductions = calculate_reductions(model, original_probabilities, tagged_tokens, headline, body_id, true_label_id)
     reductions.sort(key=lambda x: x[2]) # Lowest first
 
-    # Remove words until the prediction changes (with a cap on the number of changes)
+    # Replace words until the prediction changes (with a cap on the number of changes)
     changes = 0
     new_body = body
     new_tokens = [w for w, _pos in tagged_tokens]
+    replacements = []
     while model.predict(feature_vec(headline, new_body)) == true_label_id:
-        if (changes >= 10 or (not reductions)):
+        if (changes >= 20 or (not reductions)):
             return (body, 0) # Could not change the label
 
         index, synonym, _reduction = reductions.pop() # Largest reduction
-        print("Replacing {} with {} at index {}".format(new_tokens[index], synonym, index))
-        removed_so_far.append(index)
+        replacements.append((index, synonym))
         new_tokens[index] = synonym
         new_body = detokenizer.detokenize(new_tokens)
         changes += 1
+
+    for index, synonym in replacements:
+        print("Replacing {} with {} at index {}".format(tagged_tokens[index][0], synonym, index))
 
     # If the loop terminated then we were able to change the label
     return (new_body, changes)
@@ -163,7 +196,7 @@ def main():
     print("Original correct: {}".format(len(correctly_predicted)))
 
     # Transform each example
-    for index in tqdm(correctly_predicted):
+    for index in tqdm(correctly_predicted[:50]):
         try:
             headline = headlines[index]
             original_body = bodies[index]
@@ -186,7 +219,7 @@ def main():
 
     with_changes = [c for c in change_counts if c > 0]
     print("Prediction changed count: {}".format(len(with_changes)))
-    print("Median deletions: {}".format(np.median(with_changes)))
+    print("Median changes: {}".format(np.median(with_changes)))
 
     write_csvs(transformed_examples)
 
