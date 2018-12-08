@@ -1,3 +1,6 @@
 [submodule "fnc_1_baseline"]
 	path = fnc_1_baseline
 	url = https://github.com/FakeNewsChallenge/fnc-1-baseline.git
+[submodule "uclmr"]
+	path = uclmr
+	url = https://github.com/uclmr/fakenewschallenge.git
