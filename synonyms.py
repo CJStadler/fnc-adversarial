@@ -8,7 +8,7 @@ For each example:
     Get class probabilities of example with word.
     Get class probabilities if word is replaced by a synonym.
     Save reduction in probability of correct class, and the synonym.
-  Until the predicted label changes or we hit the max number of deletions:
+  Until the predicted label changes or we hit the max number of changes:
     Replace the word which causes the highest reduction in probability with its
         synonym.
 """
@@ -17,10 +17,10 @@ import csv
 import numpy as np
 import sklearn as sk
 
+from time import time
 from sklearn.externals import joblib
 from tqdm import tqdm
 from sacremoses import MosesTokenizer, MosesDetokenizer
-
 from fnc_1_baseline.utils.dataset import DataSet
 from fnc_1_baseline.utils.score import report_score, LABELS, score_submission
 
@@ -45,7 +45,7 @@ def probabilities_with_synonym(model, headline, tagged_tokens, token_id, synonym
     tokens = [ w for w, _pos in tagged_tokens ]
     tokens[token_id] = synonym
     new_body = detokenizer.detokenize(tokens)
-    return model.predict_proba([headline], [new_body])[0]
+    return model.predict_probabilities([headline], [new_body])[0]
 
 SYNONYMS_CACHE = {} # body_id -> list of synonym for each token
 def get_synonyms(tagged_tokens, body_id):
@@ -73,7 +73,7 @@ def probabilities_with_synonyms(model, tagged_tokens, headline, body_id):
     return probabilities
 
 def calculate_reductions(model, original_probabilities, tagged_tokens, headline, body_id, true_label_id):
-    original_probability = original_probabilities[0][true_label_id]
+    original_probability = original_probabilities[true_label_id]
     probabilities = probabilities_with_synonyms(model, tagged_tokens, headline, body_id)
 
     return [
@@ -82,7 +82,7 @@ def calculate_reductions(model, original_probabilities, tagged_tokens, headline,
     ]
 
 def construct_example(model, body, body_id, headline, true_label_id):
-    original_probabilities = model.predict_proba([headline], [body])[0]
+    original_probabilities = model.predict_probabilities([headline], [body])[0]
     tagged_tokens = tokenize_and_tag(body)
 
     # For each word calculate the class probability reduction if it is removed
@@ -113,7 +113,7 @@ def construct_example(model, body, body_id, headline, true_label_id):
 def write_csvs(transformed_examples):
     t = round(time())
     with open('data/{}transformed_test_bodies.csv'.format(t), 'w') as csvfile:
-        fieldnames = ['Body ID', 'articleBody', 'deletions', 'Original body ID']
+        fieldnames = ['Body ID', 'articleBody', 'changes', 'Original body ID']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
 
@@ -143,12 +143,10 @@ def main():
     # Load model
     model = BaselineModel(joblib.load('kfold_trained.joblib'))
     model = CachedModel('data/cache/baseline.pkl', model)
-    import pdb; pdb.set_trace()
+
     # Make predictions
     predictions = best_labels(model.predict_probabilities(headlines, bodies))
 
-    import pdb; pdb.set_trace()
-    model.save()
     # Select correct predictions of agree or disagree
     correctly_predicted = []
 
@@ -158,7 +156,7 @@ def main():
 
     change_counts = []
 
-    correctly_predicted = correctly_predicted[:3]
+    correctly_predicted = correctly_predicted[:10]
     print("Original correct: {}".format(len(correctly_predicted)))
 
     # Transform each example
@@ -169,16 +167,16 @@ def main():
             body_id = body_ids[index]
             true_label_id = y[index]
 
-            new_body, deletions = construct_example(model, original_body, body_id, headline, true_label_id)
+            new_body, changes = construct_example(model, original_body, body_id, headline, true_label_id)
             transformed_examples.append({
                 "Body ID": index,
                 "articleBody": new_body,
                 "Stance": LABELS[true_label_id],
                 "Headline": headline,
                 "Original body ID": body_id,
-                "deletions": deletions,
+                "changes": changes,
             })
-            change_counts.append(deletions)
+            change_counts.append(changes)
         except Exception as e:
             print("Error for {}: {}".format(index, e))
 
@@ -186,6 +184,7 @@ def main():
     print("Prediction changed count: {}".format(len(with_changes)))
     print("Median changes: {}".format(np.median(with_changes)))
 
+    model.save() # Save the cache
     write_csvs(transformed_examples)
 
 if __name__ == "__main__":

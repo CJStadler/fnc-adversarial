@@ -1,3 +1,5 @@
+import pickle
+
 from hashlib import md5
 from pathlib import Path
 
@@ -11,31 +13,34 @@ class CachedModel:
     """
     def __init__(self, filename, model):
         self.model = model
-        self._init_cache(filename)
+        self.filename = filename
+        self.cache = self._load_cache(filename)
 
-    def save():
-        with open(filename, 'wb') as file:
+    def save(self):
+        with open(self.filename, 'wb') as file:
             pickle.dump(self.cache, file)
 
     def predict_probabilities(self, headlines, bodies):
-        # TODO: oh no we need to get any that are cached
-        probs = self.model.predict_probabilities(headlines, bodies)
-        self._cache_probabilities(probs, headlines, bodies)
-        return probs
+        """
+        Query the model only for headline/body pairs that are not in the cahce.
+        """
+        hashes = [self._hash(h, b) for h, b in zip(headlines, bodies)]
+        all_predictions = [self.cache.get(h) for h in hashes] # missing will have None
 
-    def _cache_probabilities(self, probabilities, headlines, bodies):
-        for probs, headline, body in zip(probabilities, headlines, bodies):
+        missing_ids = [i for i, p in enumerate(all_predictions) if p is None]
 
+        if len(missing_ids) > 0:
+            missing_headlines = [headlines[i] for i in missing_ids]
+            missing_bodies = [bodies[i] for i in missing_ids]
 
-    def _single_predict(self, headline, body):
-        h = self._hash(headline, body)
-        predictions = self.cache.get(h)
+            new_predictions = self.model.predict_probabilities(missing_headlines, missing_bodies)
 
-        if not predictions:
-            predictions = self.model.predict_probabilities([headline], [body])
-            self.cache[h] = predictions
+            # Add new predictions to the cache and the array of all predictions
+            for i, p in zip(missing_ids, new_predictions):
+                self.cache[hashes[i]] = p
+                all_predictions[i] = p
 
-        return predictions
+        return all_predictions
 
     def _hash(self, headline, body):
         h = md5()
@@ -43,11 +48,11 @@ class CachedModel:
         h.update(body.encode('utf-8'))
         return h.digest()
 
-    def _init_cache(self, filename):
+    def _load_cache(self, filename):
         path = Path(filename)
 
         if path.is_file():
             with path.open(mode='rb') as file:
-                self.cache = pickle.load(file)
+                return pickle.load(file)
         else:
-            self.cache = {}
+            return {}

@@ -15,9 +15,9 @@ class BaselineModel:
         return self.model.predict_proba(X)
 
     def _generate_features(self, headlines, bodies):
-        overlap = gen_or_load_feats(word_overlap_features, headlines, bodies, "fnc_1_baseline/features/overlap.competition.npy")
-        refuting = gen_or_load_feats(refuting_features, headlines, bodies, "fnc_1_baseline/features/refuting.competition.npy")
-        polarity = gen_or_load_feats(polarity_features, headlines, bodies, "fnc_1_baseline/features/polarity.competition.npy")
-        hand = gen_or_load_feats(hand_features, headlines, bodies, "fnc_1_baseline/features/hand.competition.npy")
+        overlap = word_overlap_features(headlines, bodies)
+        refuting = refuting_features(headlines, bodies)
+        polarity = polarity_features(headlines, bodies)
+        hand = hand_features(headlines, bodies)
 
         return np.c_[hand, polarity, refuting, overlap]
