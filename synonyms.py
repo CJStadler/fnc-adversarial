@@ -24,8 +24,11 @@ from sacremoses import MosesTokenizer, MosesDetokenizer
 from fnc_1_baseline.utils.dataset import DataSet
 from fnc_1_baseline.utils.score import report_score, LABELS, score_submission
 
-from nlp import find_synonym, tokenize_and_tag
+from utils.nlp import find_synonym, tokenize_and_tag
+from utils.contributions import calculate_contributions
 from models import BaselineModel, CachedModel
+
+DETOKENIZER = MosesDetokenizer()
 
 def get_label(probabilities):
     """
@@ -40,71 +43,33 @@ def best_labels(probabilities):
     """
     return [get_label(probs) for probs in probabilities]
 
-detokenizer = MosesDetokenizer()
-def probabilities_with_synonym(model, headline, tagged_tokens, token_id, synonym):
-    tokens = [ w for w, _pos in tagged_tokens ]
-    tokens[token_id] = synonym
-    new_body = detokenizer.detokenize(tokens)
-    return model.predict_probabilities([headline], [new_body])[0]
-
-SYNONYMS_CACHE = {} # body_id -> list of synonym for each token
-def get_synonyms(tagged_tokens, body_id):
-    synonyms = SYNONYMS_CACHE.get(body_id)
-
-    if not synonyms:
-        synonyms = [
-            find_synonym(token, pos) if len(token) > 3 else None
-            for token, pos in tagged_tokens
-        ]
-        SYNONYMS_CACHE[body_id] = synonyms
-
-    return synonyms
-
-def probabilities_with_synonyms(model, tagged_tokens, headline, body_id):
-    synonyms = get_synonyms(tagged_tokens, body_id)
-
-    probabilities = []
-
-    for i, synonym in enumerate(synonyms):
-        if synonym:
-            prob = probabilities_with_synonym(model, headline, tagged_tokens, i, synonym)
-            probabilities.append((i, synonym, prob))
-
-    return probabilities
-
-def calculate_reductions(model, original_probabilities, tagged_tokens, headline, body_id, true_label_id):
-    original_probability = original_probabilities[true_label_id]
-    probabilities = probabilities_with_synonyms(model, tagged_tokens, headline, body_id)
-
-    return [
-        (i, synonym, original_probability - p[true_label_id])
-        for i, synonym, p in probabilities
-    ]
-
 def construct_example(model, body, body_id, headline, true_label_id):
     original_probabilities = model.predict_probabilities([headline], [body])[0]
     tagged_tokens = tokenize_and_tag(body)
+    tokens = [w for w, _pos in tagged_tokens]
 
-    # For each word calculate the class probability reduction if it is removed
-    reductions = calculate_reductions(model, original_probabilities, tagged_tokens, headline, body_id, true_label_id)
-    reductions.sort(key=lambda x: x[2]) # Lowest first
+    # For each word calculate its contribution to the class probability.
+    contributions = calculate_contributions(model, original_probabilities, tokens, headline, body_id, true_label_id)
+    contributions.sort(key=lambda x: x[1]) # Lowest first
 
-    # Replace words until the prediction changes (with a cap on the number of changes)
+    # Replace words with a synonym until the prediction changes (with a cap on the number of changes)
     changes = 0
     new_body = body
-    new_tokens = [w for w, _pos in tagged_tokens]
-    replacements = []
+    synonyms = []
     while best_labels(model.predict_probabilities([headline], [new_body]))[0] == true_label_id:
-        if (changes >= 10 or (not reductions)):
+        if (changes >= 10 or (not contributions)):
             return (body, 0) # Could not change the label
 
-        index, synonym, _reduction = reductions.pop() # Largest reduction
-        replacements.append((index, synonym))
-        new_tokens[index] = synonym
-        new_body = detokenizer.detokenize(new_tokens)
-        changes += 1
+        index, _contribution = contributions.pop() # Largest reduction
+        synonym = find_synonym(*tagged_tokens[index])
 
-    for index, synonym in replacements:
+        if synonym:
+            synonyms.append((index, synonym))
+            tokens[index] = synonym
+            new_body = DETOKENIZER.detokenize(tokens)
+            changes += 1
+
+    for index, synonym in synonyms:
         print("Replacing {} with {} at index {}".format(tagged_tokens[index][0], synonym, index))
 
     # If the loop terminated then we were able to change the label
@@ -112,7 +77,7 @@ def construct_example(model, body, body_id, headline, true_label_id):
 
 def write_csvs(transformed_examples):
     t = round(time())
-    with open('data/{}transformed_test_bodies.csv'.format(t), 'w') as csvfile:
+    with open('data/{}baseline_bodies.csv'.format(t), 'w') as csvfile:
         fieldnames = ['Body ID', 'articleBody', 'changes', 'Original body ID']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
@@ -120,7 +85,7 @@ def write_csvs(transformed_examples):
         for example in transformed_examples:
             writer.writerow(example)
 
-    with open('data/{}transformed_test_stances.csv'.format(t), 'w') as csvfile:
+    with open('data/{}baseline_stances.csv'.format(t), 'w') as csvfile:
         fieldnames = ['Body ID', 'Headline', 'Stance']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
@@ -142,10 +107,10 @@ def main():
 
     # Load model
     model = BaselineModel(joblib.load('kfold_trained.joblib'))
-    model = CachedModel('data/cache/baseline.pkl', model)
+    cached_model = CachedModel('data/cache/baseline.pkl', model)
 
     # Make predictions
-    predictions = best_labels(model.predict_probabilities(headlines, bodies))
+    predictions = best_labels(cached_model.predict_probabilities(headlines, bodies))
 
     # Select correct predictions of agree or disagree
     correctly_predicted = []
@@ -167,7 +132,7 @@ def main():
             body_id = body_ids[index]
             true_label_id = y[index]
 
-            new_body, changes = construct_example(model, original_body, body_id, headline, true_label_id)
+            new_body, changes = construct_example(cached_model, original_body, body_id, headline, true_label_id)
             transformed_examples.append({
                 "Body ID": index,
                 "articleBody": new_body,
@@ -184,7 +149,7 @@ def main():
     print("Prediction changed count: {}".format(len(with_changes)))
     print("Median changes: {}".format(np.median(with_changes)))
 
-    model.save() # Save the cache
+    cached_model.save() # Save the cache
     write_csvs(transformed_examples)
 
 if __name__ == "__main__":

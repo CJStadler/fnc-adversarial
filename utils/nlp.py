@@ -17,9 +17,9 @@ def tokenize_and_tag(body):
     sentence_tokens = [word_tokenize(sentence) for sentence in sent_tokenize(body)]
     tagged_sentences = pos_tag_sents(sentence_tokens)
     flattened = [tagged for sentence in tagged_sentences for tagged in sentence]
-    return [(token, translate_tag(tag)) for token, tag in flattened]
+    return [(token, _translate_tag(tag)) for token, tag in flattened]
 
-def translate_tag(penntag):
+def _translate_tag(penntag):
     """ The tagger uses different tags than wordnet. """
     map = {
         'NN':wn.NOUN,
