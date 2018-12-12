@@ -16,7 +16,6 @@ import argparse
 
 from time import time
 from sklearn.externals import joblib
-from tqdm import tqdm
 from sacremoses import MosesTokenizer, MosesDetokenizer
 
 from utils.nlp import find_synonym, tokenize_and_tag
@@ -37,7 +36,7 @@ print(find_synonym("adversarial",wn.ADJ))
 
 def write_csvs(transformed_examples):
     t = round(time())
-    with open('data/{}baseline_bodies.csv'.format(t), 'w',encoding='utf-8') as csvfile:
+    with open('data/{}_baseline_bodies.csv'.format(t), 'w',encoding='utf-8') as csvfile:
         fieldnames = ['Body ID', 'articleBody', 'Original body ID']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
@@ -45,7 +44,7 @@ def write_csvs(transformed_examples):
         for example in transformed_examples:
             writer.writerow(example)
 
-    with open('data/{}baseline_stances.csv'.format(t), 'w',encoding='utf-8') as csvfile:
+    with open('data/{}_baseline_stances.csv'.format(t), 'w',encoding='utf-8') as csvfile:
         fieldnames = ['Body ID', 'Headline', 'Stance']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
@@ -53,7 +52,7 @@ def write_csvs(transformed_examples):
         for example in transformed_examples:
             writer.writerow(example)
 
-    with open('data/{}baseline_changes.csv'.format(t), 'w',encoding='utf-8') as csvfile:
+    with open('data/{}_baseline_changes.csv'.format(t), 'w',encoding='utf-8') as csvfile:
         fieldnames = ['Body ID', 'Stance', 'Headline', 'articleBody', 'originalBody', 'changes']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
