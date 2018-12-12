@@ -13,6 +13,10 @@ def find_synonym(token, pos):
             if word != token:
                 return word
 
+def tokenize(body):
+    sentence_tokens = [word_tokenize(sentence) for sentence in sent_tokenize(body)]
+    return [w for sentence in sentence_tokens for w in sentence]
+
 def tokenize_and_tag(body):
     sentence_tokens = [word_tokenize(sentence) for sentence in sent_tokenize(body)]
     tagged_sentences = pos_tag_sents(sentence_tokens)

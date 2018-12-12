@@ -58,7 +58,7 @@ def construct_example(model, body, body_id, headline, true_label_id):
     synonyms = []
     while best_labels(model.predict_probabilities([headline], [new_body]))[0] == true_label_id:
         if (changes >= 10 or (not contributions)):
-            return (body, 0) # Could not change the label
+            return (body, []) # Could not change the label
 
         index, _contribution = contributions.pop() # Largest reduction
         synonym = find_synonym(*tagged_tokens[index])
@@ -73,12 +73,12 @@ def construct_example(model, body, body_id, headline, true_label_id):
         print("Replacing {} with {} at index {}".format(tagged_tokens[index][0], synonym, index))
 
     # If the loop terminated then we were able to change the label
-    return (new_body, changes)
+    return (new_body, synonyms)
 
 def write_csvs(transformed_examples):
     t = round(time())
     with open('data/{}baseline_bodies.csv'.format(t), 'w') as csvfile:
-        fieldnames = ['Body ID', 'articleBody', 'changes', 'Original body ID']
+        fieldnames = ['Body ID', 'articleBody', 'Original body ID']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
 
@@ -87,6 +87,14 @@ def write_csvs(transformed_examples):
 
     with open('data/{}baseline_stances.csv'.format(t), 'w') as csvfile:
         fieldnames = ['Body ID', 'Headline', 'Stance']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
+        writer.writeheader()
+
+        for example in transformed_examples:
+            writer.writerow(example)
+
+    with open('data/{}baseline_changes.csv'.format(t), 'w') as csvfile:
+        fieldnames = ['Body ID', 'Stance', 'Headline', 'articleBody', 'originalBody', 'changes']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
 
@@ -121,7 +129,7 @@ def main():
 
     change_counts = []
 
-    # correctly_predicted = correctly_predicted[:50]
+    correctly_predicted = correctly_predicted[:1000]
     print("Original correct: {}".format(len(correctly_predicted)))
 
     # Transform each example
@@ -139,15 +147,17 @@ def main():
                 "Stance": LABELS[true_label_id],
                 "Headline": headline,
                 "Original body ID": body_id,
+                "originalBody": original_body,
                 "changes": changes,
             })
-            change_counts.append(changes)
+            change_counts.append(len(changes))
         except Exception as e:
             print("Error for {}: {}".format(index, e))
 
     with_changes = [c for c in change_counts if c > 0]
     print("Prediction changed count: {}".format(len(with_changes)))
     print("Median changes: {}".format(np.median(with_changes)))
+    print("Mean changes: {}".format(np.mean(with_changes)))
 
     cached_model.save() # Save the cache
     write_csvs(transformed_examples)

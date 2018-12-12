@@ -32,11 +32,12 @@ def score_dataset(model, name):
     predicted = [LABELS[int(a)] for a in model.predict(X)]
     actual = [LABELS[int(a)] for a in y]
 
-    print("Scores on the transformed set")
     report_score(actual,predicted)
 
 if __name__ == "__main__":
-    model = joblib.load('kfold_trained2.joblib')
+    model = joblib.load('kfold_trained.joblib')
 
+    print("Scores on the original set")
     score_dataset(model, "filtered_test")
-    score_dataset(model, "transformed_test")
+    print("Scores on the transformed set")
+    score_dataset(model, "synonym_baseline")
