@@ -1,16 +1,18 @@
-from nltk import pos_tag, pos_tag_sents, word_tokenize, sent_tokenize
+from nltk import pos_tag, pos_tag_sents, word_tokenize, sent_tokenize, edit_distance
 from nltk.corpus import wordnet as wn
 
 def find_synonym(token, pos):
+    token = token.lower()
     synsets = wn.synsets(token, pos=pos)
 
     if synsets:
-        # Use the first synset.
-        synonyms = synsets[0].lemma_names()
+        # Combine the synsets.
+        synonyms = [s for synset in synsets for s in synset.lemma_names()]
 
-        # Find the first word that is not our token.
+        # Find the first synonym.
         for synonym in synonyms:
-            if synonym != token:
+            # Ignore synonyms that are too similar, they are probably different forms of the same word.
+            if edit_distance(synonym.lower(), token) > 3:
                 return _remove_underscores(synonym)
 
 def tokenize(body):
