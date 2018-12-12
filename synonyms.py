@@ -27,7 +27,7 @@ from utils.contributions import calculate_contributions
 from models import BaselineModel, CachedModel
 
 DETOKENIZER = MosesDetokenizer()
-N_CHANGES = 3
+N_CHANGES = 4
 
 def get_label(probabilities):
     """
