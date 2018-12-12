@@ -107,7 +107,7 @@ def construct_example(model, original_x, body, body_id, headline, true_label_id)
     return (new_body, changes)
 
 def write_csvs(transformed_examples):
-    with open('data/transformed_test_bodies.csv', 'w') as csvfile:
+    with open('data/transformed_test_bodies.csv', 'w',encoding='utf-8') as csvfile:
         fieldnames = ['Body ID', 'articleBody', 'deletions', 'Original body ID']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
@@ -115,7 +115,7 @@ def write_csvs(transformed_examples):
         for example in transformed_examples:
             writer.writerow(example)
 
-    with open('data/transformed_test_stances.csv', 'w') as csvfile:
+    with open('data/transformed_test_stances.csv', 'w',encoding='utf-8') as csvfile:
         fieldnames = ['Body ID', 'Headline', 'Stance']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
