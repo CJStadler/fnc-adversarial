@@ -6,12 +6,12 @@ def find_synonym(token, pos):
 
     if synsets:
         # Use the first synset.
-        words = synsets[0].lemma_names()
+        synonyms = synsets[0].lemma_names()
 
         # Find the first word that is not our token.
-        for word in words:
-            if word != token:
-                return word
+        for synonym in synonyms:
+            if synonym != token:
+                return _remove_underscores(synonym)
 
 def tokenize(body):
     sentence_tokens = [word_tokenize(sentence) for sentence in sent_tokenize(body)]
@@ -22,6 +22,9 @@ def tokenize_and_tag(body):
     tagged_sentences = pos_tag_sents(sentence_tokens)
     flattened = [tagged for sentence in tagged_sentences for tagged in sentence]
     return [(token, _translate_tag(tag)) for token, tag in flattened]
+
+def _remove_underscores(word):
+    return ' '.join(word.split('_'))
 
 def _translate_tag(penntag):
     """ The tagger uses different tags than wordnet. """
