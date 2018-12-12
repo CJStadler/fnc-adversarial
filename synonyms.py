@@ -2,15 +2,13 @@
 This script generates misclassified examples by replacing words with synonyms
 
 This is the basic algorithm:
-Get test examples where model correctly predicts agree or disagree.
 For each example:
   For each word in body:
     Get class probabilities of example with word.
     Get class probabilities if word is replaced by a synonym.
     Save reduction in probability of correct class, and the synonym.
-  Until the predicted label changes or we hit the max number of changes:
-    Replace the word which causes the highest reduction in probability with its
-        synonym.
+  Replace the N_CHANGES words which cause the highest reductions in probability
+    with their synonyms.
 """
 import csv
 
@@ -29,6 +27,7 @@ from utils.contributions import calculate_contributions
 from models import BaselineModel, CachedModel
 
 DETOKENIZER = MosesDetokenizer()
+N_CHANGES = 3
 
 def get_label(probabilities):
     """
@@ -52,26 +51,25 @@ def construct_example(model, body, body_id, headline, true_label_id):
     contributions = calculate_contributions(model, original_probabilities, tokens, headline, body_id, true_label_id)
     contributions.sort(key=lambda x: x[1]) # Lowest first
 
-    # Replace words with a synonym until the prediction changes (with a cap on the number of changes)
     changes = 0
     new_body = body
     synonyms = []
-    while best_labels(model.predict_probabilities([headline], [new_body]))[0] == true_label_id:
-        if (changes >= 10 or (not contributions)):
-            return (body, []) # Could not change the label
+
+    while changes < N_CHANGES:
+        if not contributions:
+            break
 
         index, _contribution = contributions.pop() # Largest reduction
         token, pos = tagged_tokens[index]
         synonym = find_synonym(token, pos)
 
         if synonym:
+            # print("Replacing {} with {}".format(token, synonym, index))
             synonyms.append((index, token, synonym))
             tokens[index] = synonym
-            new_body = DETOKENIZER.detokenize(tokens)
             changes += 1
 
-    for _i, original, synonym in synonyms:
-        print("Replacing {} with {}".format(original, synonym, index))
+    new_body = DETOKENIZER.detokenize(tokens)
 
     # If the loop terminated then we were able to change the label
     return (new_body, synonyms)
@@ -106,6 +104,8 @@ def main():
     # Load dataset
     dataset = DataSet(name="filtered_test", path="data")
 
+    print('Replacing {} words in each example'.format(N_CHANGES))
+
     # Load model
     model = BaselineModel(joblib.load('kfold_trained.joblib'))
     cached_model = CachedModel('data/cache/baseline.pkl', model)
@@ -114,7 +114,8 @@ def main():
     transformed_examples = []
 
     # Transform each example
-    for new_body_id, stance in tqdm(enumerate(dataset.stances[:50])):
+    stances = [(i, stance) for i, stance in enumerate(dataset.stances)]
+    for new_body_id, stance in tqdm(stances):
         try:
             headline = stance['Headline']
             body_id = stance['Body ID']
@@ -136,9 +137,6 @@ def main():
             print("Error for row {}: {}".format(new_body_id, e))
 
     with_changes = [c for c in changes_counts if c > 0]
-    print("Prediction changed count: {}".format(len(with_changes)))
-    print("Median changes: {}".format(np.median(with_changes)))
-    print("Mean changes: {}".format(np.mean(with_changes)))
 
     cached_model.save() # Save the cache
     write_csvs(transformed_examples)
