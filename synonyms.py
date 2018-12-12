@@ -61,16 +61,17 @@ def construct_example(model, body, body_id, headline, true_label_id):
             return (body, []) # Could not change the label
 
         index, _contribution = contributions.pop() # Largest reduction
-        synonym = find_synonym(*tagged_tokens[index])
+        token, pos = tagged_tokens[index]
+        synonym = find_synonym(token, pos)
 
         if synonym:
-            synonyms.append((index, synonym))
+            synonyms.append((index, token, synonym))
             tokens[index] = synonym
             new_body = DETOKENIZER.detokenize(tokens)
             changes += 1
 
-    for index, synonym in synonyms:
-        print("Replacing {} with {} at index {}".format(tagged_tokens[index][0], synonym, index))
+    for _i, original, synonym in synonyms:
+        print("Replacing {} with {}".format(original, synonym, index))
 
     # If the loop terminated then we were able to change the label
     return (new_body, synonyms)
@@ -102,47 +103,27 @@ def write_csvs(transformed_examples):
             writer.writerow(example)
 
 def main():
-    # Load test data
-    test_dataset = DataSet(name="competition_test", path="fnc_1_baseline/fnc-1")
-    headlines, bodies, body_ids, y = [],[],[],[]
-    transformed_examples = []
-
-    for stance in test_dataset.stances:
-        y.append(LABELS.index(stance['Stance']))
-        headlines.append(stance['Headline'])
-        body_ids.append(stance['Body ID'])
-        bodies.append(test_dataset.articles[stance['Body ID']])
+    # Load dataset
+    dataset = DataSet(name="filtered_test", path="data")
 
     # Load model
     model = BaselineModel(joblib.load('kfold_trained.joblib'))
     cached_model = CachedModel('data/cache/baseline.pkl', model)
 
-    # Make predictions
-    predictions = best_labels(cached_model.predict_probabilities(headlines, bodies))
-
-    # Select correct predictions of agree or disagree
-    correctly_predicted = []
-
-    for i, (prediction, truth) in enumerate(zip(predictions, y)):
-        if (prediction == truth and (prediction in [0, 1, 2])): # agree, disagree, or discuss
-            correctly_predicted.append(i)
-
-    change_counts = []
-
-    correctly_predicted = correctly_predicted[:1000]
-    print("Original correct: {}".format(len(correctly_predicted)))
+    changes_counts = []
+    transformed_examples = []
 
     # Transform each example
-    for index in tqdm(correctly_predicted):
+    for new_body_id, stance in tqdm(enumerate(dataset.stances[:50])):
         try:
-            headline = headlines[index]
-            original_body = bodies[index]
-            body_id = body_ids[index]
-            true_label_id = y[index]
+            headline = stance['Headline']
+            body_id = stance['Body ID']
+            original_body = dataset.articles[body_id]
+            true_label_id = LABELS.index(stance['Stance'])
 
             new_body, changes = construct_example(cached_model, original_body, body_id, headline, true_label_id)
             transformed_examples.append({
-                "Body ID": index,
+                "Body ID": new_body_id,
                 "articleBody": new_body,
                 "Stance": LABELS[true_label_id],
                 "Headline": headline,
@@ -150,11 +131,11 @@ def main():
                 "originalBody": original_body,
                 "changes": changes,
             })
-            change_counts.append(len(changes))
+            changes_counts.append(len(changes))
         except Exception as e:
-            print("Error for {}: {}".format(index, e))
+            print("Error for row {}: {}".format(new_body_id, e))
 
-    with_changes = [c for c in change_counts if c > 0]
+    with_changes = [c for c in changes_counts if c > 0]
     print("Prediction changed count: {}".format(len(with_changes)))
     print("Median changes: {}".format(np.median(with_changes)))
     print("Mean changes: {}".format(np.mean(with_changes)))
