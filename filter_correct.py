@@ -27,7 +27,7 @@ def generate_test_features(headlines, bodies):
     return np.c_[hand, polarity, refuting, overlap]
 
 def write_csvs(examples):
-    with open('data/filtered_test_bodies.csv', 'w') as csvfile:
+    with open('data/filtered_test_bodies.csv', 'w',encoding='utf-8') as csvfile:
         fieldnames = ['Body ID', 'articleBody']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
@@ -35,7 +35,7 @@ def write_csvs(examples):
         for example in examples:
             writer.writerow(example)
 
-    with open('data/filtered_test_stances.csv', 'w') as csvfile:
+    with open('data/filtered_test_stances.csv', 'w',encoding='utf-8') as csvfile:
         fieldnames = ['Body ID', 'Headline', 'Stance']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
