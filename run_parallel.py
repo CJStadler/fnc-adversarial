@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 This script generates misclassified examples by replacing words with synonyms
 
@@ -35,7 +36,7 @@ shared_list = list()
 print(find_synonym("adversarial",wn.ADJ))
 
 def write_csvs(transformed_examples):
-    t = round(time())
+    t = N_CHANGES     # round(time())
     with open('data/{}_baseline_bodies.csv'.format(t), 'w',encoding='utf-8') as csvfile:
         fieldnames = ['Body ID', 'articleBody', 'Original body ID']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')

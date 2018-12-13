@@ -67,7 +67,8 @@ def main():
     correctly_predicted = []
 
     for i, (prediction, truth) in enumerate(zip(predictions, y)):
-        if (prediction == truth and (prediction in [0, 1, 2])): # agree, disagree, or discuss
+        # if (prediction == truth and (prediction in [0, 1, 2])): # agree, disagree, or discuss
+        if (truth in [0, 1, 2]): # agree, disagree, or discuss
             correctly_predicted.append(i)
 
     examples = []
