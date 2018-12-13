@@ -1,5 +1,16 @@
 from nltk import pos_tag, pos_tag_sents, word_tokenize, sent_tokenize, edit_distance
 from nltk.corpus import wordnet as wn
+from nltk.data import find
+
+try:
+    find('corpora/wordnet')
+    find('tokenizers/punkt')
+    find('taggers/averaged_perceptron_tagger')
+except LookupError:
+    from nltk import download
+    download('wordnet')
+    download('punkt')
+    download('averaged_perceptron_tagger')
 
 def find_synonym(token, pos):
     token = token.lower()

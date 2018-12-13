@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 This script generates misclassified examples by replacing words with synonyms
 
@@ -34,8 +35,8 @@ shared_list = list()
 # pre-load WordNet
 print(find_synonym("adversarial",wn.ADJ))
 
-def write_csvs(transformed_examples):
-    t = round(time())
+def write_csvs(transformed_examples, t):
+    # t =round(time())
     with open('data/{}_baseline_bodies.csv'.format(t), 'w',encoding='utf-8') as csvfile:
         fieldnames = ['Body ID', 'articleBody', 'Original body ID']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
@@ -60,23 +61,24 @@ def write_csvs(transformed_examples):
         for example in transformed_examples:
             writer.writerow(example)
 
-def main(num_jobs, begin, end, v):
-    print('Replacing {} words in each example'.format(N_CHANGES))
+def main(nc, num_jobs, begin, end, v):
+    print('Replacing {} words in each example'.format(nc))
     changes_counts = []
 
     # Transform each example
-    transformed_examples = Parallel(n_jobs=num_jobs, verbose=v)(delayed(construct_example)(i) for i in range(begin,end,1))
+    transformed_examples = Parallel(n_jobs=num_jobs, verbose=v)(delayed(construct_example)(i, nc) for i in range(begin,end,1))
 
     with_changes = [c for c in changes_counts if c > 0]
 
     cached_model.save() # Save the cache
-    write_csvs(transformed_examples)
+    write_csvs(transformed_examples, nc)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate Adversarial samples for the FNC-1 dataset')
+    parser.add_argument("-c","--changes",type=int, default=4, help="number of changed words.")
     parser.add_argument("-n","--num_jobs",type=int, default=2, help="number of parallel jobs.")
     parser.add_argument("-i","--begin",type=int, default=0, help="start with item number i (>0)")
     parser.add_argument("-j","--end",type=int, default=50, help="stop with item number j (<7000)")
     parser.add_argument("-v","--verbose",type=int, default=1, help="joblib verbosity, 1-10 is the useful range")
     args = parser.parse_args()
-    main(args.num_jobs, args.begin, args.end, args.verbose)
+    main(args.changes, args.num_jobs, args.begin, args.end, args.verbose)
