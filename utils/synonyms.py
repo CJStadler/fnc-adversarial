@@ -21,7 +21,6 @@ from utils.contributions import calculate_contributions
 from models import BaselineModel, CachedModel
 
 DETOKENIZER = MosesDetokenizer()
-N_CHANGES = 4
 
 # Load dataset
 dataset = DataSet(name="filtered_test", path="data")
@@ -43,7 +42,7 @@ def best_labels(probabilities):
     """
     return [get_label(probs) for probs in probabilities]
 
-def construct_example(stance_id):
+def construct_example(stance_id, N_CHANGES):
     stance  = dataset.stances[stance_id]
     new_body_id = stance_id
     headline = stance['Headline']
